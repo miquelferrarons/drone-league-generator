@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone Racing League Scheduler</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        padding: 20px;
+    }
+    h1 {
+        color: #333;
+        text-align: center;
+    }
+    #container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+    .input-container {
+        margin-bottom: 20px;
+    }
+    .input-container label {
+        font-weight: bold;
+    }
+    .input-container input[type="text"],
+    .input-container input[type="number"] {
+        width: 100%;
+        padding: 8px;
+        margin-top: 6px;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    button {
+        background-color: #4CAF50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    button:hover {
+        background-color: #45a049;
+    }
+    #output {
+        margin-top: 20px;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+</style>
+</head>
+<body>
+<h1>Drone Racing League Scheduler</h1>
+
+<div id="container">
+    <div class="input-container">
+        <label for="players">Enter the names of pilots separated by comma:</label><br>
+        <input type="text" id="players" name="players"><br>
+    </div>
+    <div class="input-container">
+        <label for="playersPerMatch">Number of pilots per race:</label><br>
+        <input type="number" id="playersPerMatch" name="playersPerMatch" value="4"><br>
+    </div>
+    <div class="input-container">
+        <label for="numRounds">Number of races:</label><br>
+        <input type="number" id="numRounds" name="numRounds" value="0"><br>
+    </div>
+    <button onclick="generateSchedule()">Generate Schedule</button>
+
+    <div id="output"></div>
+</div>
+
+<script>
+function generateSchedule() {
+    let playersInput = document.getElementById("players").value;
+    let players = playersInput.split(",");
+    let playersPerMatch = parseInt(document.getElementById("playersPerMatch").value);
+    let numRounds = parseInt(document.getElementById("numRounds").value);
+    
+    if (playersPerMatch <= 0 || playersPerMatch > players.length || players.length % playersPerMatch !== 0) {
+        alert("Invalid number of pilots per race or pilots count.");
+        return;
+    }
+
+    if (numRounds <= 0) {
+        numRounds = Math.ceil(players.length / playersPerMatch) - 1;
+    }
+
+    let matches = generateMatches(players, playersPerMatch, numRounds);
+
+    displaySchedule(matches, players);
+}
+
+function generateMatches(players, playersPerMatch, numRounds) {
+    let matches = [];
+    
+    for (let i = 0; i < numRounds; i++) {
+        let roundMatches = [];
+        let roundPlayers = players.slice(); // Copy players array
+
+        while (roundPlayers.length >= playersPerMatch) {
+            let match = roundPlayers.splice(0, playersPerMatch);
+            roundMatches.push(match);
+        }
+
+        matches.push(roundMatches);
+
+        // Rotate players for the next round
+        players.unshift(players.pop());
+    }
+
+    return matches;
+}
+
+function displaySchedule(matches, players) {
+    let outputDiv = document.getElementById("output");
+    outputDiv.innerHTML = "";
+
+    matches.forEach((roundMatches, index) => {
+        let roundHeader = document.createElement("h3");
+        roundHeader.textContent = `Race ${index + 1}`;
+        outputDiv.appendChild(roundHeader);
+
+        let table = document.createElement("table");
+        let headerRow = table.insertRow();
+        for (let i = 1; i <= parseInt(document.getElementById("playersPerMatch").value); i++) {
+            headerRow.insertCell().textContent = `Pilot ${i}`;
+        }
+
+        roundMatches.forEach(match => {
+            let row = table.insertRow();
+            match.forEach(player => {
+                let cell = row.insertCell();
+                cell.textContent = player;
+            });
+        });
+
+        outputDiv.appendChild(table);
+    });
+
+    // Display statistics
+    displayStatistics(matches, players);
+}
+
+function displayStatistics(matches, players) {
+    let statisticsDiv = document.createElement("div");
+    statisticsDiv.classList.add("statistics");
+    statisticsDiv.innerHTML = "<h2>Statistics</h2>";
+
+    let matrix = generateStatisticsMatrix(matches, players);
+    let table = document.createElement("table");
+
+    // Header row
+    let headerRow = table.insertRow();
+    headerRow.insertCell();
+    players.forEach(player => {
+        let headerCell = headerRow.insertCell();
+        headerCell.textContent = player;
+    });
+
+    // Data rows
+    players.forEach((player1, index1) => {
+        let row = table.insertRow();
+        let cell = row.insertCell();
+        cell.textContent = player1;
+        players.forEach((player2, index2) => {
+            let cell = row.insertCell();
+            cell.textContent = matrix[index1][index2];
+        });
+    });
+
+    statisticsDiv.appendChild(table);
+    document.getElementById("container").appendChild(statisticsDiv);
+}
+
+function generateStatisticsMatrix(matches, players) {
+    let matrix = [];
+    for (let i = 0; i < players.length; i++) {
+        matrix.push(new Array(players.length).fill(0));
+    }
+
+    matches.forEach(roundMatches => {
+        roundMatches.forEach(match => {
+            for (let i = 0; i < match.length; i++) {
+                for (let j = i + 1; j < match.length; j++) {
+                    let index1 = players.indexOf(match[i]);
+                    let index2 = players.indexOf(match[j]);
+                    matrix[index1][index2]++;
+                    matrix[index2][index1]++;
+                }
+            }
+        });
+    });
+
+    return matrix;
+}
+</script>
+
+</body>
+</html>
