@@ -64,6 +64,9 @@
     th {
         background-color: #f2f2f2;
     }
+    .statistics {
+        margin-top: 20px;
+    }
 </style>
 </head>
 <body>
@@ -72,15 +75,15 @@
 <div id="container">
     <div class="input-container">
         <label for="players">Enter the names of pilots separated by comma:</label><br>
-        <input type="text" id="players" name="players"><br>
+        <input type="text" id="players" name="players" value="Player1, Player2, Player3, Player4, Player5, Player6, Player7, Player8, Player9, Player10, Player11, Player12"><br>
     </div>
     <div class="input-container">
         <label for="playersPerMatch">Number of pilots per race:</label><br>
-        <input type="number" id="playersPerMatch" name="playersPerMatch" value="4"><br>
+        <input type="number" id="playersPerMatch" name="playersPerMatch" value="3"><br>
     </div>
     <div class="input-container">
-        <label for="numRounds">Number of races:</label><br>
-        <input type="number" id="numRounds" name="numRounds" value="0"><br>
+        <label for="numRounds">Number of rounds:</label><br>
+        <input type="number" id="numRounds" name="numRounds" value="6"><br>
     </div>
     <button onclick="generateSchedule()">Generate Schedule</button>
 
@@ -88,59 +91,113 @@
 </div>
 
 <script>
-function generateSchedule() {
-    let playersInput = document.getElementById("players").value;
-    let players = playersInput.split(",");
-    let playersPerMatch = parseInt(document.getElementById("playersPerMatch").value);
-    let numRounds = parseInt(document.getElementById("numRounds").value);
-    
-    if (playersPerMatch <= 0 || playersPerMatch > players.length || players.length % playersPerMatch !== 0) {
-        alert("Invalid number of pilots per race or pilots count.");
-        return;
-    }
+let players = [];
+let playersPerMatch = 0;
+let numRounds = 0;
 
+function generateSchedule() {
+    players = document.getElementById("players").value.split(",");
+    playersPerMatch = parseInt(document.getElementById("playersPerMatch").value);
+    numRounds = parseInt(document.getElementById("numRounds").value);
+    
     if (numRounds <= 0) {
         numRounds = Math.ceil(players.length / playersPerMatch) - 1;
     }
 
-    let matches = generateMatches(players, playersPerMatch, numRounds);
+    let matches = generateMatches();
 
-    displaySchedule(matches, players);
+    displaySchedule(matches);
 }
 
-function generateMatches(players, playersPerMatch, numRounds) {
+function generateMatches() {
     let matches = [];
+    let statisticsMatrix = generateStatisticsMatrix();
     
     for (let i = 0; i < numRounds; i++) {
         let roundMatches = [];
         let roundPlayers = players.slice(); // Copy players array
 
         while (roundPlayers.length >= playersPerMatch) {
-            let match = roundPlayers.splice(0, playersPerMatch);
+            let match = [];
+            for (let j = 0; j < playersPerMatch; j++) {
+                let nextPlayer = selectNextPlayer(roundPlayers, match, statisticsMatrix);
+                match.push(nextPlayer);
+                roundPlayers.splice(roundPlayers.indexOf(nextPlayer), 1);
+            }
             roundMatches.push(match);
+        }
+
+        if (roundPlayers.length > 0) {
+            roundMatches.push(roundPlayers); // Add remaining players to a match
         }
 
         matches.push(roundMatches);
 
-        // Rotate players for the next round
-        players.unshift(players.pop());
+        // Update statistics matrix for next round
+        updateStatisticsMatrix(roundMatches, statisticsMatrix);
     }
 
     return matches;
 }
 
-function displaySchedule(matches, players) {
+function selectNextPlayer(availablePlayers, currentMatch, statisticsMatrix) {
+    let bestPlayer = null;
+    let bestScore = Number.MAX_SAFE_INTEGER;
+
+    availablePlayers.forEach(player => {
+        let score = calculateScore(player, currentMatch, statisticsMatrix);
+        if (score < bestScore) {
+            bestScore = score;
+            bestPlayer = player;
+        }
+    });
+
+    return bestPlayer;
+}
+
+function calculateScore(player, currentMatch, statisticsMatrix) {
+    let score = 0;
+    currentMatch.forEach(opponent => {
+        let index1 = players.indexOf(player);
+        let index2 = players.indexOf(opponent);
+        score += statisticsMatrix[index1][index2];
+    });
+    return score;
+}
+
+function updateStatisticsMatrix(matches, statisticsMatrix) {
+    matches.forEach(match => {
+        for (let i = 0; i < match.length; i++) {
+            for (let j = i + 1; j < match.length; j++) {
+                let index1 = players.indexOf(match[i]);
+                let index2 = players.indexOf(match[j]);
+                statisticsMatrix[index1][index2]++;
+                statisticsMatrix[index2][index1]++;
+            }
+        }
+    });
+}
+
+function generateStatisticsMatrix() {
+    let matrix = [];
+    for (let i = 0; i < players.length; i++) {
+        matrix.push(new Array(players.length).fill(0));
+    }
+    return matrix;
+}
+
+function displaySchedule(matches) {
     let outputDiv = document.getElementById("output");
     outputDiv.innerHTML = "";
 
     matches.forEach((roundMatches, index) => {
         let roundHeader = document.createElement("h3");
-        roundHeader.textContent = `Race ${index + 1}`;
+        roundHeader.textContent = `Round ${index + 1}`;
         outputDiv.appendChild(roundHeader);
 
         let table = document.createElement("table");
         let headerRow = table.insertRow();
-        for (let i = 1; i <= parseInt(document.getElementById("playersPerMatch").value); i++) {
+        for (let i = 1; i <= playersPerMatch; i++) {
             headerRow.insertCell().textContent = `Pilot ${i}`;
         }
 
@@ -155,62 +212,38 @@ function displaySchedule(matches, players) {
         outputDiv.appendChild(table);
     });
 
-    // Display statistics
-    displayStatistics(matches, players);
-}
+    // Calculate and display the statistics matrix
+    let statisticsMatrix = generateStatisticsMatrix();
+    matches.forEach(roundMatches => {
+        updateStatisticsMatrix(roundMatches, statisticsMatrix);
+    });
 
-function displayStatistics(matches, players) {
-    let statisticsDiv = document.createElement("div");
-    statisticsDiv.classList.add("statistics");
-    statisticsDiv.innerHTML = "<h2>Statistics</h2>";
+    let statisticsHeader = document.createElement("h3");
+    statisticsHeader.textContent = "Statistics Matrix";
+    outputDiv.appendChild(statisticsHeader);
 
-    let matrix = generateStatisticsMatrix(matches, players);
-    let table = document.createElement("table");
-
-    // Header row
-    let headerRow = table.insertRow();
-    headerRow.insertCell();
+    let statisticsTable = document.createElement("table");
+    let headerRow = statisticsTable.insertRow();
+    headerRow.insertCell(); // Empty cell for alignment
     players.forEach(player => {
-        let headerCell = headerRow.insertCell();
-        headerCell.textContent = player;
+        let cell = headerRow.insertCell();
+        cell.textContent = player;
     });
 
-    // Data rows
-    players.forEach((player1, index1) => {
-        let row = table.insertRow();
-        let cell = row.insertCell();
-        cell.textContent = player1;
-        players.forEach((player2, index2) => {
-            let cell = row.insertCell();
-            cell.textContent = matrix[index1][index2];
-        });
-    });
-
-    statisticsDiv.appendChild(table);
-    document.getElementById("container").appendChild(statisticsDiv);
-}
-
-function generateStatisticsMatrix(matches, players) {
-    let matrix = [];
     for (let i = 0; i < players.length; i++) {
-        matrix.push(new Array(players.length).fill(0));
+        let row = statisticsTable.insertRow();
+        let headerCell = row.insertCell();
+        headerCell.textContent = players[i];
+
+        for (let j = 0; j < players.length; j++) {
+            let cell = row.insertCell();
+            cell.textContent = statisticsMatrix[i][j];
+        }
     }
 
-    matches.forEach(roundMatches => {
-        roundMatches.forEach(match => {
-            for (let i = 0; i < match.length; i++) {
-                for (let j = i + 1; j < match.length; j++) {
-                    let index1 = players.indexOf(match[i]);
-                    let index2 = players.indexOf(match[j]);
-                    matrix[index1][index2]++;
-                    matrix[index2][index1]++;
-                }
-            }
-        });
-    });
-
-    return matrix;
+    outputDiv.appendChild(statisticsTable);
 }
+
 </script>
 
 </body>
